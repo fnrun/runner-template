@@ -13,13 +13,16 @@ import (
 	"github.com/fnrun/fnrun/pkg/run/fn/identity"
 	fnloader "github.com/fnrun/fnrun/pkg/run/fn/loader"
 	"github.com/fnrun/fnrun/pkg/run/fn/pool"
+	"github.com/fnrun/fnrun/pkg/run/middleware/circuitbreaker"
 	"github.com/fnrun/fnrun/pkg/run/middleware/debug"
 	"github.com/fnrun/fnrun/pkg/run/middleware/jq"
 	"github.com/fnrun/fnrun/pkg/run/middleware/json"
+	kafkamiddleware "github.com/fnrun/fnrun/pkg/run/middleware/kafka"
 	"github.com/fnrun/fnrun/pkg/run/middleware/key"
 	"github.com/fnrun/fnrun/pkg/run/middleware/pipeline"
 	"github.com/fnrun/fnrun/pkg/run/middleware/timeout"
 	"github.com/fnrun/fnrun/pkg/run/runner"
+	"github.com/fnrun/fnrun/pkg/run/source/cron"
 	"github.com/fnrun/fnrun/pkg/run/source/http"
 	"github.com/fnrun/fnrun/pkg/run/source/kafka"
 	"github.com/fnrun/fnrun/pkg/run/source/lambda"
@@ -45,13 +48,16 @@ func main() {
 	registry.RegisterFnWithRegistry("fnrun.fn/pool", pool.New)
 	registry.RegisterFnWithRegistry("fn", fnloader.New)
 
+	registry.RegisterMiddleware("fnrun.middleware/circuitbreaker", circuitbreaker.New)
 	registry.RegisterMiddleware("fnrun.middleware/debug", debug.New)
 	registry.RegisterMiddleware("fnrun.middleware/jq", jq.New)
 	registry.RegisterMiddleware("fnrun.middleware/json", json.New)
+	registry.RegisterMiddleware("fnrun.middleware/kafka", kafkamiddleware.New)
 	registry.RegisterMiddleware("fnrun.middleware/key", key.New)
 	registry.RegisterMiddleware("fnrun.middleware/timeout", timeout.New)
 	registry.RegisterMiddlewareWithRegistry("middleware", pipeline.NewWithRegistry)
 
+	registry.RegisterSource("fnrun.source/cron", cron.New)
 	registry.RegisterSource("fnrun.source/http", http.New)
 	registry.RegisterSource("fnrun.source/kafka", kafka.New)
 	registry.RegisterSource("fnrun.source/lambda", lambda.New)
