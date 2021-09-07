@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"io/ioutil"
+	"log"
 	"os"
+	"time"
 
 	"github.com/fnrun/fnrun/run"
 	"github.com/fnrun/fnrun/run/config"
@@ -23,6 +25,7 @@ import (
 	"github.com/fnrun/fnrun/run/middleware/ratelimiter"
 	"github.com/fnrun/fnrun/run/middleware/timeout"
 	"github.com/fnrun/fnrun/run/runner"
+	"github.com/fnrun/fnrun/run/source/azure/servicebus"
 	"github.com/fnrun/fnrun/run/source/cron"
 	"github.com/fnrun/fnrun/run/source/http"
 	"github.com/fnrun/fnrun/run/source/kafka"
@@ -34,7 +37,11 @@ import (
 
 func main() {
 	var filePath string
+	var autoRestart bool
+	var restartWait time.Duration
 	flag.StringVar(&filePath, "f", "fnrun.yaml", "path to configuration yaml file")
+	flag.BoolVar(&autoRestart, "restart", true, "indication of whether source should automatically restart")
+	flag.DurationVar(&restartWait, "restart-wait", 10*time.Second, "the amount of time to wait before automatically restarting")
 	flag.Parse()
 
 	if envFilePath := os.Getenv("CONFIG_FILE"); envFilePath != "" {
@@ -59,6 +66,7 @@ func main() {
 	registry.RegisterMiddleware("fnrun.middleware/timeout", timeout.New)
 	registry.RegisterMiddlewareWithRegistry("middleware", pipeline.NewWithRegistry)
 
+	registry.RegisterSource("fnrun.source/azure/servicebus", servicebus.New)
 	registry.RegisterSource("fnrun.source/cron", cron.New)
 	registry.RegisterSource("fnrun.source/http", http.New)
 	registry.RegisterSource("fnrun.source/kafka", kafka.New)
@@ -71,8 +79,10 @@ func main() {
 		panic(err)
 	}
 
+	configStr := os.ExpandEnv(string(configBytes))
+
 	var configMap map[string]interface{}
-	err = yaml.Unmarshal(configBytes, &configMap)
+	err = yaml.Unmarshal([]byte(configStr), &configMap)
 	if err != nil {
 		panic(err)
 	}
@@ -83,7 +93,15 @@ func main() {
 		panic(err)
 	}
 
-	if err = runner.Run(context.Background()); err != nil {
-		panic(err)
+	log.Println("Running fnrun runner...")
+	for {
+		err = runner.Run(context.Background())
+		if !autoRestart {
+			panic(err)
+		}
+		log.Printf("Received error: %+v\n", err)
+		log.Printf("Restarting runner in %s\n", restartWait.String())
+		<-time.After(restartWait)
+		log.Println("Restarting runner...")
 	}
 }
